@@ -52,7 +52,7 @@ bên trong repo GitHub. Workflow có sẵn tại `.github/workflows/pages.yml`.
    git push -u origin main
    ```
 
-   Checkout hiện tại đã có Git, chưa có remote; `git init` có thể chạy lại an toàn.
+   Checkout hiện tại đã có Git và remote `origin`; không cần chạy lại các bước khởi tạo.
    Nếu đã cấu hình `origin`, kiểm tra `git remote -v` và dùng URL của repo đó.
 3. Trong repo GitHub, mở **Settings → Pages → Build and deployment → Source → GitHub Actions**.
 4. Mở **Actions → Test and deploy web → Run workflow**, chọn `main`.
@@ -69,6 +69,23 @@ cổng USB/UART trên trang. GitHub chỉ lưu trang tĩnh; dữ liệu serial �
 trình duyệt. Mỗi phiên vẫn cần người dùng chọn cổng theo quyền của trình duyệt.
 
 Tham khảo: [cấu hình GitHub Pages với Actions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+### Deploy báo `Get Pages site failed` / `HttpError: Not Found`
+
+Lỗi tại `actions/configure-pages` cho biết workflow chưa truy cập được cấu hình
+Pages của repo. Mở [Settings → Pages của DFM-QB](https://github.com/QuocBuu/DFM-QB/settings/pages),
+chọn **Build and deployment → Source → GitHub Actions**, rồi chạy lại job thất bại
+trong **Actions → Test and deploy web**. Cần quyền admin hoặc maintainer để đổi nguồn xuất bản.
+
+Không chỉ thêm `enablement: true`: theo [khai báo action chính thức](https://github.com/actions/configure-pages/blob/v6/action.yml),
+tự bật Pages cần token khác `GITHUB_TOKEN`. Cấu hình qua Settings một lần cho phép
+workflow tiếp tục dùng token mặc định, không cần thêm secret.
+
+Workflow dùng checkout/setup-node/configure-pages v6 (runtime Node.js 24) và runner
+`ubuntu-24.04` để xử lý cảnh báo runtime cũ và tránh tự chuyển sang Ubuntu 26.
+Node.js chạy tests vẫn là 22. Những cảnh báo này độc lập với lỗi cấu hình Pages.
+Sau khi đẩy thay đổi workflow, chạy một lượt mới trên `main` để dùng các phiên bản mới;
+chạy lại lượt cũ vẫn dùng workflow của commit cũ.
 
 ## Mở local
 
