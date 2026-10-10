@@ -35,5 +35,5 @@ test('mount transform and stationary gyro compensation',()=>{
  const samples=Array.from({length:30},(_,i)=>sample(i,[0,0,1],[1.5,-.1,.05]));
  const bias=gyroBias(samples);near(bias[0],1.5,.00001);
  assert.throws(()=>gyroBias(samples.slice(0,4)));
- samples[15].accel=[0,1,0];assert.throws(()=>gyroBias(samples),/chuyển động/);
+ samples[15].accel=[0,1,0];assert.throws(()=>gyroBias(samples),/board is moving/);
 });

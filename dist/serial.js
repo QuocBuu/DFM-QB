@@ -1,10 +1,11 @@
+import { COMMAND, LINK } from './protocol.js';
 import { LineBuffer } from './telemetry.js';
 export class SerialLink {
   constructor(onLine,onClose) { this.onLine=onLine; this.onClose=onClose; this.port=null; this.reader=null; this.closing=false; this.writes=Promise.resolve(); }
   async connect() {
-    if (!globalThis.isSecureContext || !navigator.serial) throw new Error('Hãy mở bằng Chrome/Edge trên localhost hoặc HTTPS để dùng USB/UART.');
+    if (!globalThis.isSecureContext || !navigator.serial) throw new Error('Open this page in Chrome/Edge on localhost or HTTPS to use USB/UART.');
     const port = await navigator.serial.requestPort(); // User gesture; supports USB-JTAG and USB-UART bridges.
-    await port.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none',bufferSize:16384});
+    await port.open({...LINK});
     this.port=port; this.closing=false;
     this.readTask=this.readLoop(port);
     return port.getInfo();
@@ -29,12 +30,12 @@ export class SerialLink {
       await this.writes.catch(()=>{});
       try { await port.close(); } catch {}
       this.port=null;
-      this.onClose(failure?.message || 'Cổng serial đã đóng.');
+      this.onClose(failure?.message || 'The serial port has closed.');
     }
   }
   send(command) {
     const operation=this.writes.catch(()=>{}).then(async()=>{
-      if (!this.port?.writable) throw new Error('Chưa kết nối cổng serial.');
+      if (!this.port?.writable) throw new Error('No serial port connected.');
       const writer=this.port.writable.getWriter();
       try { await writer.write(new TextEncoder().encode(command)); }
       finally { writer.releaseLock(); }
@@ -44,7 +45,7 @@ export class SerialLink {
   async disconnect() {
     if (!this.port) return;
     this.closing=true;
-    try { await this.send('q'); } catch {}
+    try { await this.send(COMMAND.imuStop); } catch {}
     try { await this.reader?.cancel(); } catch {}
     await this.readTask;
     try { await this.port?.close(); } finally { this.port=null; }

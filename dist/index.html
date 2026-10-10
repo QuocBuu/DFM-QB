@@ -1,56 +1,54 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#101619"><meta name="description" content="Mini Drone Flight Deck — kết nối ESP32-C3 qua USB, xem tư thế và dữ liệu IMU trực tiếp.">
-<title>Mini Drone · Flight Deck</title>
+<meta name="theme-color" content="#ffffff"><meta name="description" content="Connect an ESP32-C3 via USB or UART to view drone attitude and ICM-20948 data.">
+<title>Mini drone · Maintenance</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<aside class="sidebar">
-  <a class="brand" href="#"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M10 10L26 26M10 26L26 10"/><circle cx="9" cy="9" r="5"/><circle cx="27" cy="9" r="5"/><circle cx="9" cy="27" r="5"/><circle cx="27" cy="27" r="5"/><path d="M15 15h6v6h-6z"/></svg><span>MINI DRONE<small>FLIGHT DECK</small></span></a>
-  <div class="nav-label">WORKSPACE</div>
-  <a class="nav active" href="#attitude"><span>◈</span> Tổng quan <i>01</i></a>
-  <a class="nav" href="#sensors"><span>⌁</span> Cảm biến <i>02</i></a>
-  <a class="nav" href="#settings"><span>⚙</span> Cấu hình trục <i>03</i></a>
-  <a class="nav" href="#console"><span>›_</span> Serial console <i>04</i></a>
-  <div class="sidebar-bottom"><span class="hardware-icon">C3</span><strong>ESP32-C3</strong><span>ICM-20948 · 9-axis IMU</span><div class="board-label"><b></b> DIAGNOSTICS ONLY</div><p>Quan sát tư thế.<br>Motor luôn được khóa.</p><small>MINI DRONE PROJECT <span>v0.1</span></small></div>
-</aside>
-<div class="workspace">
-<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Flight overview</strong></div><div class="top-actions"><span id="connectionBadge" class="status"><i></i> CHƯA KẾT NỐI</span><span class="baud">115200 baud</span><button id="connect" class="primary"><span>↔</span> Kết nối USB / UART</button></div></header>
 <main>
-<section class="page-heading"><div><div class="eyebrow">GROUND STATION / 01</div><h1>Hiểu từng chuyển động<span>.</span></h1><p>Tư thế drone và dữ liệu cảm biến, ngay trên bàn làm việc.</p></div><button id="demo" class="quiet">▷ <span>Xem mô phỏng</span></button></section>
-<div id="notice" class="notice" role="status">Cắm ESP32-C3, chọn <strong>Kết nối USB / UART</strong> rồi chọn cổng của board. Đóng Serial Monitor nếu đang mở.</div>
-<section class="metrics" aria-label="Các góc tư thế">
- <article class="metric"><div class="metric-top"><span><b class="axis x">X</b> ROLL</span><span>Nghiêng trái / phải</span></div><div class="angle" id="roll">—<small>°</small></div><div class="meter"><i id="rollMeter"></i></div></article>
- <article class="metric"><div class="metric-top"><span><b class="axis y">Y</b> PITCH</span><span>Chúi / ngẩng mũi</span></div><div class="angle" id="pitch">—<small>°</small></div><div class="meter"><i id="pitchMeter"></i></div></article>
- <article class="metric"><div class="metric-top"><span><b class="axis z">Z</b> YAW</span><span>Hướng tương đối</span></div><div class="angle" id="yaw">—<small>°</small></div><div class="meter"><i id="yawMeter"></i></div></article>
- <article class="metric health"><div class="metric-top"><span><b class="axis neutral">⌁</b> TELEMETRY</span><span id="sampleState">Chờ dữ liệu</span></div><div class="angle" id="rate">—<small>Hz</small></div><div class="health-bottom"><span><i id="dataDot"></i> <span id="sampleCount">0 mẫu</span></span><span id="temperature">— °C</span></div></article>
+<header><div><h1>Mini drone</h1><p>ESP32-C3 / ICM-20948</p></div><div class="actions"><span id="connectionBadge" class="status">DISCONNECTED</span><button id="demo">Try demo</button><button id="connect" class="primary">Connect USB / UART</button></div></header>
+<div id="notice" class="notice" role="status">Plug in the board, click Connect USB / UART, then select a port. Close Serial Monitor if it is open.</div>
+<nav class="tabs" role="tablist" aria-label="Device pages"><button id="tab-monitor" role="tab" aria-controls="panel-monitor" aria-selected="true" tabindex="0">Monitor</button><button id="tab-parameters" role="tab" aria-controls="panel-parameters" aria-selected="false" tabindex="-1">Parameters</button><button id="tab-firmware" role="tab" aria-controls="panel-firmware" aria-selected="false" tabindex="-1">Firmware</button><button id="tab-log" role="tab" aria-controls="panel-log" aria-selected="false" tabindex="-1">Serial log</button></nav>
+<section id="panel-monitor" role="tabpanel" aria-labelledby="tab-monitor">
+<div class="toolbar"><div class="actions"><button id="stream" disabled>Start streaming</button><button id="zero" disabled>Zero attitude</button><span class="muted">Keys i / q</span></div><div class="telemetry"><i id="dataDot"></i><span id="sampleState">Waiting for data</span><b id="rate">— Hz</b><span id="sampleCount">0 samples</span><span id="temperature">— °C</span></div></div>
+<div class="dashboard">
+<section class="model" aria-label="Drone attitude">
+<div class="section-head"><h2>Attitude</h2><span id="source" class="source">OFFLINE</span><div class="view-switch" role="group" aria-label="View"><button class="selected" data-view="perspective">3D</button><button data-view="top">Top</button><button data-view="front">Front</button></div></div>
+<div id="viewport" class="viewport" aria-label="Drone model showing IMU attitude"><div id="viewportHint" class="viewport-hint"><span>WAITING FOR BOARD</span><small>Connect to see live movement</small></div></div>
+<p class="view-note">Drag to rotate the view · Scroll to zoom · Green marks the nose</p>
 </section>
-<div class="main-grid">
-<section id="attitude" class="panel attitude"><div class="panel-heading"><h2><span class="panel-icon">◇</span> Tư thế drone <span class="tag">3D VIEW</span></h2><span id="source" class="source">OFFLINE</span></div>
-<div id="viewport" class="viewport" aria-label="Mô hình drone 3D biểu diễn tư thế IMU">
- <div class="viewport-top"><span><b></b> MOTOR LOCKED</span><div class="view-switch" role="group" aria-label="Góc nhìn"><button class="selected" data-view="perspective">3D</button><button data-view="top">Trên</button><button data-view="front">Trước</button></div></div>
- <div id="viewportHint" class="viewport-hint"><span>ĐANG CHỜ BOARD</span><small>Kết nối để xem chuyển động trực tiếp</small></div>
- <div class="orientation-key"><span><i class="red"></i> X · Mũi</span><span><i class="green"></i> Y · Trái</span><span><i class="blue"></i> Z · Lên</span></div>
- <span class="drag-hint">Kéo để xoay góc nhìn · Cuộn để zoom</span>
-</div>
-<div class="viewport-toolbar"><div class="live-control"><button id="stream" disabled><span>▶</span> Bắt đầu đọc</button><span class="keyboard">i / q</span></div><button id="zero" class="quiet" disabled>⊙ Đặt mốc tư thế</button></div>
-<div class="panel-note"><span>ⓘ</span> Roll / pitch kết hợp gyro + gia tốc. Yaw là hướng tương đối, có thể trôi theo thời gian.</div>
-</section>
-<section id="sensors" class="panel sensors"><div class="panel-heading"><h2><span class="panel-icon">⌁</span> Cảm biến</h2><span class="tag">ICM-20948</span></div>
-<div class="sensor-block"><div class="sensor-heading"><h3>Gia tốc</h3><span>g <small>±4</small></span></div><div class="xyz" id="accel"><div><span class="x-text">X</span><b>—</b></div><div><span class="y-text">Y</span><b>—</b></div><div><span class="z-text">Z</span><b>—</b></div></div><canvas id="accelChart" aria-label="Biểu đồ gia tốc ba trục"></canvas></div>
-<div class="sensor-block"><div class="sensor-heading"><h3>Vận tốc góc</h3><span>°/s <small>±500</small></span></div><div class="xyz" id="gyro"><div><span class="x-text">X</span><b>—</b></div><div><span class="y-text">Y</span><b>—</b></div><div><span class="z-text">Z</span><b>—</b></div></div><canvas id="gyroChart" aria-label="Biểu đồ gyro ba trục"></canvas></div>
-<div class="sensor-block magnetic"><div class="sensor-heading"><h3>Từ trường <span class="muted">AK09916</span></h3><span>µT</span></div><div class="xyz" id="mag"><div><span class="x-text">X</span><b>—</b></div><div><span class="y-text">Y</span><b>—</b></div><div><span class="z-text">Z</span><b>—</b></div></div><p>Hiển thị số đo thô · chưa dùng làm la bàn.</p></div>
-<div class="sensor-footer"><span>BUS <b>I²C</b></span><span>OUTPUT <b>10 Hz</b></span><span id="imuIdentity">ID <b>—</b></span></div>
+<section class="readings" aria-label="IMU readings">
+<div class="angles"><div><span>Roll</span><b id="roll">—<small>°</small></b></div><div><span>Pitch</span><b id="pitch">—<small>°</small></b></div><div><span>Yaw</span><b id="yaw">—<small>°</small></b></div></div>
+<h2>Sensors · raw data</h2>
+<table><thead><tr><th scope="col">Measurement</th><th scope="col">X</th><th scope="col">Y</th><th scope="col">Z</th></tr></thead><tbody><tr id="accel"><th scope="row">Acceleration <small>g</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr><tr id="gyro"><th scope="row">Gyro <small>°/s</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr><tr id="mag"><th scope="row">Magnetic field <small>µT</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr></tbody></table>
+<p class="muted"><span id="imuIdentity">I²C —</span> · 115200 baud · 10 Hz</p>
+<p class="muted">Roll / pitch combine gyroscope and accelerometer data. Yaw is relative and may drift; the magnetometer is not yet used as a compass.</p>
 </section>
 </div>
-<section class="panel history"><div class="panel-heading"><h2><span class="panel-icon">∿</span> Chuyển động theo thời gian</h2><div class="chart-legend"><span class="x-text">● Roll</span><span class="y-text">● Pitch</span><span class="z-text">● Yaw</span><span>30 GIÂY</span></div></div><div class="history-plot"><canvas id="attitudeChart" aria-label="Biểu đồ roll pitch yaw trong 30 giây"></canvas></div><div class="chart-time"><span>−30s</span><span>−20s</span><span>−10s</span><span>HIỆN TẠI</span></div></section>
-<div class="bottom-grid">
-<section id="settings" class="panel settings"><div class="panel-heading"><h2><span class="panel-icon">⚙</span> Cấu hình trục & điểm zero</h2></div><p>Khớp trục IMU với mô hình: X hướng mũi, Y sang trái, Z lên trên.</p><div class="settings-fields"><label>Góc xoay IMU quanh Z<select id="mount"><option value="0">0° · Giữ trục chip</option><option value="90">+90°</option><option value="180">180°</option><option value="270">270° / −90°</option></select></label><label class="flip-label"><input id="flipped" type="checkbox"> IMU lắp úp (xoay X 180°)</label></div><div class="calibration-row"><button id="calibrate" disabled>◎ Hiệu chỉnh lệch gyro</button><span id="calibrationStatus">Đặt board đứng yên trong 3 giây.</span></div><p class="fine">Chỉ áp dụng trong phiên web này. Không ghi cấu hình vào firmware.</p></section>
-<section id="console" class="panel console"><div class="panel-heading"><h2><span class="panel-icon">›_</span> Serial console</h2><div><button id="export" class="text-button">↓ Tải log</button><button id="clear" class="text-button">Xóa</button></div></div><pre id="log" tabindex="0" aria-label="Nhật ký serial">Sẵn sàng. Chưa kết nối thiết bị.</pre><div class="console-footer"><span><i></i> RX / USB SERIAL</span><span>UTF-8 · 115200 8N1</span></div></section>
-</div>
-<footer><span><b></b> MINI DRONE <span class="footer-divider">/</span> FLIGHT DIAGNOSTICS</span><span>Dữ liệu xử lý trên máy của bạn. Không gửi lên server.</span></footer>
-</main></div>
+<details id="historyPanel"><summary>Attitude history · 30 seconds</summary><p class="legend"><span>Roll</span><span>Pitch</span><span>Yaw</span></p><canvas id="attitudeChart" aria-label="Roll, pitch and yaw chart over 30 seconds"></canvas></details>
+</section>
+<section id="panel-parameters" role="tabpanel" aria-labelledby="tab-parameters" hidden><h2>Saved parameters</h2><p>Read configuration and IMU calibration from the board into a checked JSON file. Unsaved browser edits are excluded.</p><button id="backupParameters" disabled>Read & download parameters</button><p id="backupResult" role="status"></p><details id="settings" open><summary>IMU settings · Gyro & mounting</summary><p>X points forward, Y left, Z up.</p><div class="settings-fields"><label>Rotation around Z <select id="mount"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label><label><input id="flipped" type="checkbox"> IMU mounted upside down (180° rotation around X)</label></div><div class="actions"><button id="calibrate" disabled>Calibrate gyro bias</button><span id="calibrationStatus">Keep the board still for 3 seconds.</span></div><p>Gyro bias X / Y / Z: <b id="profileBias">Not measured</b></p><p id="profileStatus" role="status">No board connected.</p><div class="actions"><button id="saveProfile" disabled>Save & reboot</button><button id="loadProfile" disabled>Reload / Discard edits</button><button id="applyProfile" disabled>Reboot to apply</button><button id="infoImu" disabled>info imu</button></div><p class="muted">Save to the board, reboot, then verify the active settings. Save time uses your computer clock. Zeroing attitude only affects this web session.</p></details>
+</section>
+<section id="panel-firmware" role="tabpanel" aria-labelledby="tab-firmware" hidden>
+<h2>Full firmware update · USB / UART</h2>
+<p>Update bootloader, partition table, Recovery and Flight as one release. NVS is backed up first and preserved on the board. The updater reads back every written image before reporting completion.</p>
+<div class="actions"><button id="enterRecovery" disabled>Enter Recovery</button><button id="updaterRefresh">Refresh updater / ports</button></div>
+<p class="muted">Terminal commands: <code>sys recovery</code> or <code>ENTER_OTA</code> + Enter. Build a release with <code>make firmware-bundle</code>. Full updates also work without a browser: <code>make update-full FILE=firmware-full.zip PORT=/dev/ttyACM0</code>.</p>
+<ol><li>Select a complete release ZIP and the attached port.</li><li>Prepare: close the dashboard serial connection, validate the release, read NVS and save a verified backup.</li><li>Download the backup, then confirm the full update. Keep power connected.</li></ol>
+<div class="settings-fields"><label>Release ZIP <input id="firmwareFile" type="file" accept=".zip"></label><label>Port <select id="firmwarePort" aria-label="Firmware USB/UART port"></select></label></div>
+<div class="actions"><button id="prepareFirmware" disabled>1. Prepare & back up</button><button id="downloadBackup" disabled>2. Download NVS backup</button></div>
+<p>The NVS backup contains saved parameters, calibration and Wi-Fi credentials. Keep it private. Flashing Recovery/bootloader can require ROM USB/UART repair if power fails.</p>
+<label><input id="confirmFirmware" type="checkbox"> I saved the backup and want to replace the full firmware.</label>
+<p><button id="installFirmware" class="primary" disabled>3. Install full firmware</button></p>
+<pre id="firmwareResult" role="status" aria-live="polite">Checking local updater…</pre>
+<p class="muted">Full update boots into Recovery after a manual reset. Use <code>BOOT_MAIN</code> to start Flight. A verified write does not yet confirm that Flight runs correctly. GPIO2 held low through reset for 3 seconds selects Recovery; GPIO9 BOOT + reset enters ROM download for USB/UART repair.</p>
+</section>
+<section id="panel-log" role="tabpanel" aria-labelledby="tab-log" hidden>
+<details id="console" open><summary>Serial log</summary><div class="actions"><button id="export">Download log</button><button id="clear">Clear</button><span class="muted">Last 500 lines</span></div><pre id="log" tabindex="0" aria-label="Serial log">Ready. No device connected.</pre></details>
+</section>
+<footer>IMU diagnostics · Motors are locked in Phase 1 firmware. Data is processed on your computer.</footer>
+</main>
 <script type="module" src="./app.js"></script>
 </body></html>

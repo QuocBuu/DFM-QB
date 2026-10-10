@@ -89,11 +89,11 @@ export class Attitude {
   }
 }
 export function gyroBias(samples) {
-  if (samples.length < 30) throw new Error('Cần ít nhất 30 mẫu.');
+  if (samples.length < 30) throw new Error('At least 30 samples are required.');
   const mean = [0,1,2].map(i => samples.reduce((s,v) => s+v.gyro[i],0)/samples.length);
   const gyroDeviation = [0,1,2].map(i => Math.sqrt(samples.reduce((s,v) => s+(v.gyro[i]-mean[i])**2,0)/samples.length));
   const accelMean = [0,1,2].map(i => samples.reduce((s,v) => s+v.accel[i],0)/samples.length);
   const movement = samples.some(s => Math.abs(Math.hypot(...s.accel)-1)>0.15 || Math.hypot(...s.accel.map((v,i)=>v-accelMean[i]))>0.08);
-  if (movement || gyroDeviation.some(v=>v>0.35) || Math.hypot(...mean)>8) throw new Error('Board đang chuyển động. Đặt yên rồi thử lại.');
+  if (movement || gyroDeviation.some(v=>v>0.35) || Math.hypot(...mean)>8) throw new Error('The board is moving. Keep it still and try again.');
   return mean;
 }

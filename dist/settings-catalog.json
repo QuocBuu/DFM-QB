@@ -1,0 +1,55 @@
+{
+  "format": "mini-drone.settings/1",
+  "registry_tag": "5cfab864",
+  "transport": "CFG1",
+  "snapshot": "DCF1",
+  "write_semantics": "replace_all_overrides",
+  "discovery": false,
+  "settings": [
+    {
+      "id": 1,
+      "group": "sys",
+      "name": "PREFER_RECOVERY",
+      "type": "bool",
+      "default": false,
+      "unit": "none",
+      "minimum": 0,
+      "maximum": 1,
+      "rule": "range",
+      "description": "Enter recovery at the next Flight boot",
+      "storage": "persistent",
+      "apply": "reboot",
+      "access": "read_write"
+    },
+    {
+      "id": 2,
+      "group": "wifi",
+      "name": "STA_TIMEOUT_MS",
+      "type": "u32",
+      "default": 20000,
+      "unit": "ms",
+      "minimum": 1000,
+      "maximum": 120000,
+      "rule": "range",
+      "description": "STA connection and disconnection grace period; applies after reboot",
+      "storage": "persistent",
+      "apply": "reboot",
+      "access": "read_write"
+    },
+    {
+      "id": 3,
+      "group": "flight",
+      "name": "ARMING_ENABLED",
+      "type": "bool",
+      "default": false,
+      "unit": "none",
+      "minimum": 0,
+      "maximum": 0,
+      "rule": "phase1_disarmed",
+      "description": "Phase 1 always disarmed; no verified IMU calibration or flight controller",
+      "storage": "persistent",
+      "apply": "reboot",
+      "access": "read_write"
+    }
+  ]
+}

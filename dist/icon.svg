@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#141b20"/><g stroke="#95ebbd" stroke-width="2" fill="none"><path d="M11 11l18 18M11 29l18-18"/><circle cx="11" cy="11" r="5"/><circle cx="29" cy="11" r="5"/><circle cx="11" cy="29" r="5"/><circle cx="29" cy="29" r="5"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"
+     role="img" aria-labelledby="title" shape-rendering="crispEdges">
+    <title id="title">QB</title>
+    <rect width="64" height="64" fill="#000"/>
+    <g fill="#fff">
+        <path d="M14 18h12v4H14z M10 22h4v20h-4z M26 22h4v16h-4z
+                 M18 34h4v4h-4z M22 38h4v4h-4z M14 42h8v4h-8z M26 42h4v4h-4z"/>
+        <path d="M34 18h16v4H34z M34 22h4v20h-4z M50 22h4v8h-4z
+                 M38 30h12v4H38z M50 34h4v8h-4z M34 42h16v4H34z"/>
+    </g>
+</svg>
