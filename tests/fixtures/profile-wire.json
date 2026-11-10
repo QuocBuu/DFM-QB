@@ -1,0 +1,42 @@
+[
+  {
+    "profile": {
+      "revision": 1,
+      "writeId": "0100000000000000",
+      "address": 105,
+      "turns": 0,
+      "flipped": false,
+      "bias": [
+        -1000,
+        250,
+        0
+      ],
+      "samples": 30,
+      "std": 10,
+      "gravity": 10,
+      "savedAt": 1791586800
+    },
+    "hex": "46445432010000000100000000000000690000ea18fcfffffa000000000000001e0000000a0000000a000000f071c96a13ff452e",
+    "set": "@DATA1 00000001 SET 46445432010000000100000000000000690000ea18fcfffffa000000000000001e0000000a0000000a000000f071c96a13ff452e 6cb7de93\n"
+  },
+  {
+    "profile": {
+      "revision": 4294967295,
+      "writeId": "0123456789abcdef",
+      "address": 104,
+      "turns": 3,
+      "flipped": true,
+      "bias": [
+        0,
+        -8000,
+        0
+      ],
+      "samples": 1000,
+      "std": 350,
+      "gravity": 150,
+      "savedAt": 0
+    },
+    "hex": "46445432ffffffff0123456789abcdef680301ea00000000c0e0ffff00000000e80300005e0100009600000000000000c2a6ce54",
+    "set": "@DATA1 00000001 SET 46445432ffffffff0123456789abcdef680301ea00000000c0e0ffff00000000e80300005e0100009600000000000000c2a6ce54 af5fbaf0\n"
+  }
+]

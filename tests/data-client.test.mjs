@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { crc32 } from '../dist/config-wire.js';
 import { DataClient, encodeProfile, decodeProfile, dataFrame, dataReply } from '../dist/data-client.js';
@@ -101,4 +102,15 @@ test('ACK without a reboot cannot be reported as applied',async()=>{
   await assert.rejects(d.client.reboot(),/reboot is unconfirmed/);
   assert.equal(d.client.applied,false);assert.equal(d.client.known,false);
   assert.equal(d.sent.filter(x=>x.includes(' REBOOT ')).length,1);
+});
+
+
+test('generated Python vectors agree with DATA1 frames and the explicit FDT2 codec',()=>{
+  const vectors=JSON.parse(readFileSync(new URL('./fixtures/profile-wire.json',import.meta.url),'utf8'));
+  for(const vector of vectors){
+    const bytes=encodeProfile(vector.profile);
+    assert.equal(hex(bytes),vector.hex);
+    assert.deepEqual(decodeProfile(bytes),vector.profile);
+    assert.equal(dataFrame(1,'SET',bytes),vector.set);
+  }
 });

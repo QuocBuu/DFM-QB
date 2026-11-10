@@ -1,3 +1,5 @@
 node_modules/
 .openai/*.log
 *.zip
+test-results/
+playwright-report/

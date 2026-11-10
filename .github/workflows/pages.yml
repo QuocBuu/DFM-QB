@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-      # Buildless site: no install, bundler or third-party runtime packages.
+      # Static site: committed Bootstrap subset; Node tests need no install/build.
       - name: Test protocol, serial and static site
         run: npm test
 

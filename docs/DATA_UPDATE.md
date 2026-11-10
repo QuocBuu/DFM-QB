@@ -36,9 +36,9 @@ IMU calibrated a[g]=... g[dps]=... T[C]=...
 
 ## Phạm vi
 
-`sys_data` trong Flight sở hữu i/q và stream IMU, cùng INFO/GET/SET DATA1.
-`sys_imu` vẫn trả dữ liệu thô; stream legacy không tự trừ bias hoặc đổi trục để
-tránh web bù hai lần. `sys_data_read_calibrated()` trừ bias và đổi trục theo profile nạp lúc boot;
+`src/app/flight` sở hữu i/q và stream IMU, cùng INFO/GET/SET DATA1.
+`ext_imu` vẫn trả dữ liệu thô; stream legacy không tự trừ bias hoặc đổi trục để
+tránh web bù hai lần. `app_flight_calibration_read()` trừ bias và đổi trục theo profile nạp lúc boot;
 `info imu` sử dụng API này. SET không đổi profile active giữa phiên. Profile là dữ liệu chẩn đoán đã tính trên host, **không phải
 chứng nhận calibration đủ điều kiện bay**. Recovery không đăng ký handler DATA1.
 
@@ -54,7 +54,7 @@ credentials hay các record calibration `imu/*` cũ. Không erase namespace/part
 
 Mỗi snapshot lưu **cùng một blob**: schema, revision, write ID, thông số, CRC.
 Validation trước khi mở NVS ghi; kiểm tra revision và publish nằm trong cùng
-`sys_guard` lock với gate outputs safe. SET khi đang stream bị từ chối. Commit
+`sv_guard` lock với gate outputs safe. SET khi đang stream bị từ chối. Commit
 thành công rồi đóng/mở lại handle, đọc lại đúng từng byte mới trả OK.
 
 Không có record: GET/ACTIVE OK `-` (revision logic 0). Record lỗi CRC/schema hoặc NVS lỗi:
@@ -173,3 +173,13 @@ Chạy `make`, `make test`, `make validate`, `npm test --prefix web`. Tests host
 không chứng minh độ bền điện/flash. Không auto-save theo mỗi mẫu IMU. Bằng chứng board chi tiết nằm tại
 `docs/HARDWARE.md` trong repo firmware; record mới nhất là revision 2, hướng lắp
 0°/không úp (giá trị mặc định, chưa có kiểm tra cơ khí từng trục).
+
+
+## Nguồn chung sau refactor 12–14
+
+`config/profile.json` trong repo firmware là nguồn định nghĩa size/offset/limits/mã lỗi
+DATA1/FDT2. `make contracts-generate` sinh header C, `dist/profile-contract.js` và
+`tests/fixtures/profile-wire.json`. Client import hằng số từ file sinh ra; phát hành
+`data-client.js` và `profile-contract.js` cùng nhau. Định dạng FDT2 vẫn 52 byte, lệnh
+và transaction không đổi, web cũ vẫn tương thích wire. Lịch sử/tác động phát hành
+được ghi tại `docs/WEB_CHANGES.md` trong repo firmware.

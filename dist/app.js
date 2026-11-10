@@ -1,32 +1,45 @@
+import {hydrateIcons,LogView,bindTabs} from './ui.js';
+import {setupFlashMap} from './flash-ui.js';
 import {ParameterBackup,FirmwarePanel,setupTabs,download} from './maintenance.js';
 import { Attitude,fromEuler,rotate,inverse,euler } from './telemetry.js';
 import { COMMAND,parseDeviceLine } from './protocol.js';
+import {MotorTest} from './motor.js';
+import {MotorSettings} from './motor-settings.js';
 import { SerialLink } from './serial.js';
 import { ImuSettings } from './data-ui.js';
 import { chart } from './charts.js';
 const $=id=>document.getElementById(id);
-const selectTab=setupTabs();
+hydrateIcons();
+setupFlashMap();
+const serialLog=new LogView($('console'));
 const attitude=new Attitude();
 let view=null;
 try {const {DroneView}=await import('./drone.js');view=new DroneView($('viewport'));}
 catch(error){$('viewportHint').innerHTML='<span>3D INITIALIZATION FAILED</span><small>Could not create the canvas. IMU readings are still available.</small>';console.error(error);}
-let recoveryMode=false,maintenanceBusy=false;
-let connected=false,connecting=false,streaming=false,demo=false,closing=false,lastSampleAt=0,lastSample=null,history=[],logLines=[],total=0,calibration=null,pendingStart=0,gotStop=false;
+let recoveryMode=false,flightIdentified=false,maintenanceBusy=false;
+let connected=false,connecting=false,streaming=false,demo=false,closing=false,lastSampleAt=0,lastSample=null,history=[],total=0,calibration=null,pendingStart=0,gotStop=false;
 let demoTimer=null,demoN=0,demoStart=0;
 const link=new SerialLink(onLine,message=>{
-  backup.disconnect();settings.disconnect();connected=false;streaming=false;connecting=false;calibration=null;pendingStart=0;
+  motor.disconnect();motorSettings.disconnect();backup.disconnect();settings.disconnect();connected=false;streaming=false;connecting=false;calibration=null;pendingStart=0;
   messageNotice(`Connection lost. ${message} Plug the board back in and click Connect USB / UART.`, 'error');log(`SYS · ${message}`);updateControls();
 });
+const motor=new MotorTest(bytes=>link.send(bytes),updateControls);
 const settings=new ImuSettings({send:bytes=>link.send(bytes),changed:updateControls,report:(text,error)=>messageNotice(text,error?'error':''),apply:p=>{
   attitude.bias=p?p.bias.map(x=>x/1000):[0,0,0];
   $('mount').value=String(p?p.turns*90:0);$('flipped').checked=p?.flipped??false;
   attitude.setMount(Number($('mount').value),$('flipped').checked);history=[];
 }});
-const backup=new ParameterBackup(settings.client,bytes=>link.send(bytes));
+const motorSettings=new MotorSettings({send:bytes=>link.send(bytes),stop:()=>settings.client.exchange(0,'q',true),run:fn=>settings.run(fn),changed:updateControls});
+const selectParameter=bindTabs($('parameterTabs'),{onSelect:tab=>{
+  $('parameterSelection').textContent=tab.id==='parameter-motor'?'Motor calib':'IMU calib';
+  if(tab.id!=='parameter-motor')leaveMotor();
+}});
+const selectTab=setupTabs({onSelect:tab=>{if(tab.id!=='tab-parameters')leaveMotor();}});
+const backup=new ParameterBackup(settings.client,bytes=>link.send(bytes),{canExport:()=>connected&&flightIdentified&&!recoveryMode});
 const firmware=new FirmwarePanel({report:messageNotice,changed:busy=>{maintenanceBusy=busy;updateControls();},release:async()=>{
   if(settings.busy||connecting||closing)throw new Error('Wait for the connection or parameter operation to finish.');
   if(demo)endDemo();
-  if(connected){backup.disconnect();settings.disconnect();closing=true;updateControls();try{await link.disconnect();}finally{connected=false;streaming=false;closing=false;updateControls();}}
+  if(connected){backup.disconnect();settings.disconnect();closing=true;updateControls();try{await link.disconnect();}finally{motor.disconnect();motorSettings.disconnect();connected=false;streaming=false;closing=false;updateControls();}}
 }});
 $('backupParameters').onclick=()=>settings.run(async()=>{
   try{const response=await fetch('./settings-catalog.json');if(!response.ok)throw new Error('Settings catalog unavailable');const saved=await backup.read(await response.json());download(JSON.stringify(saved,null,2)+'\n',`mini-drone-parameters-${Date.now()}.json`);$('backupResult').textContent='Parameters read twice and checksums verified; backup download requested.';}
@@ -39,21 +52,28 @@ $('enterRecovery').onclick=()=>settings.run(async()=>{
   streaming=false;selectTab('firmware');
 });
 function messageNotice(message,kind=''){const n=$('notice');n.textContent=message;n.className=`notice ${kind}`;}
-function log(line){logLines.push(`${new Date().toLocaleTimeString('en-US')}  ${line}`);if(logLines.length>500)logLines.shift();renderLog();}
-function renderLog(){if(!$('console').open)return;$('log').textContent=logLines.join('\n');$('log').scrollTop=$('log').scrollHeight;}
-$('console').addEventListener('toggle',renderLog);
+function log(line){serialLog.append(`${new Date().toLocaleTimeString('en-US')}  ${line}`);}
 $('infoImu').addEventListener('click',()=>selectTab('log'));
 function clearData(){attitude.reset();history=[];total=0;lastSampleAt=0;lastSample=null;calibration=null;pendingStart=0;gotStop=false;$('calibrationStatus').textContent='Keep the board still for 3 seconds.';}
 function clearSession(){clearData();attitude.bias=[0,0,0];}
 function updateControls(){
-  $('backupParameters').disabled=!connected||settings.busy||!!calibration||closing||connecting;
-  $('enterRecovery').disabled=!connected||settings.busy||closing||connecting;
-  settings.measuring=!!calibration||maintenanceBusy;settings.render();
+  const motorBlocked=maintenanceBusy||recoveryMode||!connected||connecting||closing||settings.busy||!!calibration;
+  $('motorStart').disabled=motorBlocked||motor.busy;
+  $('motorStop').disabled=!connected||closing||settings.busy||maintenanceBusy;
+  for(const button of document.querySelectorAll('[data-motor]')){
+    button.disabled=motorBlocked||!motor.mode||!!motor.pending;
+    button.setAttribute('aria-pressed',String(motor.motor===Number(button.dataset.motor)));
+  }
+  $('motorStatus').textContent=motor.status;
+  motorSettings.render({connected,activeMotor:motor.motor,blocked:maintenanceBusy||settings.busy||motor.busy||connecting||closing||!!calibration});
+  $('backupParameters').disabled=recoveryMode||!flightIdentified||maintenanceBusy||motor.busy||!connected||settings.busy||!!calibration||closing||connecting;
+  $('enterRecovery').disabled=maintenanceBusy||motor.busy||!connected||settings.busy||closing||connecting;
+  settings.measuring=!!calibration||maintenanceBusy||motor.busy;settings.render();
   $('connect').disabled=maintenanceBusy||connecting||closing||settings.busy;
   $('connect').innerHTML=connecting?'Connecting…':closing?'Disconnecting…':connected?'↔ Disconnect':'↔ Connect USB / UART';
   $('demo').disabled=maintenanceBusy||connected||connecting||closing;
   $('demo').innerHTML=demo?'■ Stop demo':'▷ Try demo';
-  $('stream').disabled=maintenanceBusy||recoveryMode||!connected||connecting||closing||settings.busy;
+  $('stream').disabled=maintenanceBusy||motor.busy||recoveryMode||!connected||connecting||closing||settings.busy;
   $('stream').innerHTML=streaming?'Ⅱ Stop streaming':'▶ Start streaming';
   const fresh=lastSampleAt>0&&performance.now()-lastSampleAt<1500;
   $('zero').disabled=!fresh||(!streaming&&!demo);
@@ -68,16 +88,18 @@ function updateControls(){
   if(view){$('viewportHint').classList.toggle('hidden',fresh&&(streaming||demo));if(!fresh||(!streaming&&!demo))$('viewportHint').innerHTML=`<span>${streaming?'NO NEW DATA':connected?'PAUSED':'WAITING FOR BOARD'}</span><small>${lastSample?'Showing the last recorded attitude':'Connect to see live movement'}</small>`;}
 }
 function onLine(line){
-  if(line.startsWith('Running=')){recoveryMode=line.startsWith('Running=factory');if(recoveryMode){selectTab('firmware');messageNotice('Recovery ready. Saved parameters can be exported; full updates use USB/UART.');}}
+  if(line.startsWith('Running=')){recoveryMode=line.startsWith('Running=factory');flightIdentified=line.startsWith('Running=ota_0');if(recoveryMode){selectTab('firmware');messageNotice('Recovery ready. Firmware updates use USB/UART; parameter export requires Flight.');}}
+  if(motorSettings.client.onLine(line)){log(line);return;}
   if(backup.onLine(line)){log(line);return;}
   if(settings.onLine(line)){log(line);return;}
   const event=parseDeviceLine(line);
+  motor.onEvent(event);
   if(event.type==='imu.sample'){if(!connected||gotStop)return;streaming=true;pendingStart=0;accept(event.sample,false);log(line);return;}
   log(line);
   if(event.type==='imu.started'){streaming=true;gotStop=false;pendingStart=performance.now();if(event.address)$('imuIdentity').textContent=`I²C ${event.address}`;}
   if(event.type==='imu.stopped'){streaming=false;gotStop=true;pendingStart=0;calibration=null;}
   if(event.type==='imu.error'){streaming=false;pendingStart=0;calibration=null;messageNotice(line+' · Check the board, then click Start streaming to try again.','error');}
-  if(event.type==='device.recovery'){recoveryMode=true;settings.disconnect();streaming=false;pendingStart=0;messageNotice('Recovery is ready. Open Firmware for a full USB/UART update, or export saved parameters.');selectTab('firmware');}
+  if(event.type==='device.recovery'){motor.disconnect();motorSettings.disconnect();recoveryMode=true;flightIdentified=false;settings.disconnect();streaming=false;pendingStart=0;messageNotice('Recovery is ready. Open Firmware for a full USB/UART update. Export parameters from Flight before entering Recovery.');selectTab('firmware');}
   updateControls();
 }
 function accept(sample,simulated){
@@ -102,25 +124,25 @@ function showSample(sample,angles){
   $('sampleCount').textContent=`${total.toLocaleString('en-US')} samples`;
 }
 async function begin(){
-  if(maintenanceBusy||settings.busy||recoveryMode)return;
+  if(maintenanceBusy||motor.busy||settings.busy||recoveryMode)return;
   calibration=null;gotStop=false;attitude.reset();history=[];
   await link.send(COMMAND.imuStart);streaming=true;pendingStart=performance.now();
-  messageNotice('Streaming from the board · Gently rotate the drone to see its attitude. Keep the board still to zero attitude or calibrate gyro bias.');updateControls();
+  messageNotice('Live IMU data · Rotate the board to inspect attitude.');updateControls();
 }
 async function stop(){if(settings.busy)return;await link.send(COMMAND.imuStop);streaming=false;pendingStart=0;calibration=null;messageNotice('Streaming stopped. Showing the last sample; click Start streaming to resume.');updateControls();}
-function endDemo(){clearInterval(demoTimer);demoTimer=null;demo=false;streaming=false;clearSession();clearValues();view?.setQuaternion([0,0,0,1]);messageNotice('Plug in the ESP32-C3 and click Connect USB / UART. Close Serial Monitor if it is open.');updateControls();}
+function endDemo(){clearInterval(demoTimer);demoTimer=null;demo=false;streaming=false;clearSession();clearValues();view?.setQuaternion([0,0,0,1]);messageNotice('Connect the board via USB / UART to begin.');updateControls();}
 function clearValues(){for(const key of ['roll','pitch','yaw']){$(key).innerHTML='—<small>°</small>';}for(const key of ['accel','gyro','mag'])$(key).querySelectorAll('b').forEach(x=>x.textContent='—');$('temperature').textContent='— °C';$('sampleCount').textContent='0 samples';$('imuIdentity').innerHTML='ID <b>—</b>';}
 $('connect').addEventListener('click',async()=>{
-  if(connected){backup.disconnect();settings.disconnect();closing=true;updateControls();try{await link.disconnect();}catch(error){log(`SYS · ${error.message}`);}finally{connected=false;streaming=false;closing=false;calibration=null;messageNotice('Disconnected. The serial port is now available to other applications.');updateControls();}return;}
+  if(connected){backup.disconnect();settings.disconnect();closing=true;updateControls();try{await link.disconnect();}catch(error){log(`SYS · ${error.message}`);}finally{motor.disconnect();motorSettings.disconnect();connected=false;streaming=false;closing=false;calibration=null;messageNotice('Disconnected. The serial port is now available to other applications.');updateControls();}return;}
   if(demo)endDemo();connecting=true;updateControls();
-  try{const info=await link.connect();connected=true;recoveryMode=false;clearSession();clearValues();log(`SYS · Serial open 115200 8N1 / USB vendor ${info.usbVendorId?.toString(16)??'UART'}`);await link.send(COMMAND.imuStop+'\nsys boot\n');await new Promise(r=>setTimeout(r,250));if(!recoveryMode){await settings.connected();await begin();}}
+  try{const info=await link.connect();connected=true;recoveryMode=false;flightIdentified=false;clearSession();clearValues();log(`SYS · Serial open 115200 8N1 / USB vendor ${info.usbVendorId?.toString(16)??'UART'}`);await link.send(COMMAND.imuStop+'\nsys boot\n');await new Promise(r=>setTimeout(r,250));if(!recoveryMode){await settings.connected();await settings.run(()=>motorSettings.load());await begin();}}
   catch(error){if(link.port)await link.disconnect().catch(()=>{});connected=false;messageNotice(error.name==='NotFoundError'?'No port selected. Click Connect USB / UART to select the ESP32-C3 or USB-UART adapter.':`Could not connect: ${error.message} · Close any terminals using the port and try again.`,'error');}
   finally{connecting=false;updateControls();}
 });
 $('stream').addEventListener('click',()=>{if(!connected)return;const op=streaming?stop():begin();op.catch(error=>messageNotice(error.message,'error'));});
 $('demo').addEventListener('click',()=>{
   if(demo){endDemo();return;}clearSession();clearValues();demo=true;demoN=0;demoStart=performance.now();
-  messageNotice('DEMO MODE · Data is simulated in the browser to preview the interface, not measured by the ESP32-C3.','demo');
+  messageNotice('Demo · Simulated IMU data. No device commands.','demo');
   log('DEMO · Simulated data started.');
   demoTimer=setInterval(()=>{
     const t=(performance.now()-demoStart)/1000;
@@ -138,9 +160,37 @@ $('calibrate').addEventListener('click',()=>{calibration=[];$('calibrationStatus
 function mountChanged(){settings.edited();attitude.setMount(Number($('mount').value),$('flipped').checked);history=[];log('SYS · IMU mounting orientation changed; attitude reference reset.');}
 $('mount').addEventListener('change',mountChanged);$('flipped').addEventListener('change',mountChanged);
 for(const button of document.querySelectorAll('[data-view]'))button.addEventListener('click',()=>{view?.setView(button.dataset.view);document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b===button));});
-$('clear').addEventListener('click',()=>{logLines=[];$('log').textContent='Log cleared.';});
-$('export').addEventListener('click',()=>{const blob=new Blob([logLines.join('\n')+'\n'],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`mini-drone-${demo?'demo':'serial'}-${new Date().toISOString().replaceAll(':','-')}.log`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-document.addEventListener('keydown',e=>{if(e.repeat||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(connected&&!maintenanceBusy&&!settings.busy&&(e.key==='i'||e.key==='q')){e.preventDefault();(e.key==='i'?begin():stop()).catch(error=>messageNotice(error.message,'error'));}});
+$('clear').addEventListener('click',()=>serialLog.clear());
+$('export').addEventListener('click',()=>{const blob=new Blob([serialLog.text()],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`mini-drone-${demo?'demo':'serial'}-${new Date().toISOString().replaceAll(':','-')}.log`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+function motorAction(operation){operation.catch(error=>messageNotice(error.message,'error'));}
+function enterMotor(){
+  if($('motorStart').disabled)return;
+  selectTab('parameters');selectParameter($('parameter-motor'));
+  calibration=null;streaming=false;pendingStart=0;
+  messageNotice('Motor bench test · Remove propellers. Each press runs one motor at 10% for 2 seconds.');
+  motorAction(motor.enter());
+}
+$('motorStart').addEventListener('click',enterMotor);
+$('motorStop').addEventListener('click',()=>motorAction(motor.stop()));
+for(const button of document.querySelectorAll('[data-motor]'))button.addEventListener('click',()=>motorAction(motor.select(Number(button.dataset.motor))));
+document.addEventListener('keydown',e=>{
+  if(!connected||closing||e.repeat)return;
+  if(motor.busy){
+    e.preventDefault();
+    if(/^[1-4]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+      if(!motor.pending)motorAction(motor.select(Number(e.key)));
+    }else leaveMotor();
+    return;
+  }
+  if(maintenanceBusy||settings.busy)return;
+  if(streaming){e.preventDefault();stop().catch(error=>messageNotice(error.message,'error'));return;}
+  if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key==='m'){e.preventDefault();enterMotor();}
+  else if(e.key==='i'||e.key==='q'){e.preventDefault();(e.key==='i'?begin():stop()).catch(error=>messageNotice(error.message,'error'));}
+});
+function leaveMotor(){if(connected&&motor.busy&&motor.pending?.expected!=='imu.stopped')motorAction(motor.stop());}
+window.addEventListener('blur',leaveMotor);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)leaveMotor();});
 window.addEventListener('beforeunload',()=>{if(connected&&!settings.busy)link.send(COMMAND.imuStop).catch(()=>{});});
 if(!navigator.serial||!isSecureContext){messageNotice('Web Serial is unavailable in this browser. Open the page in Chrome/Edge on localhost or HTTPS; you can still try the demo.','error');$('connect').title='Requires Chrome/Edge on localhost or HTTPS';}
 let lastFrame=0,lastChart=0;

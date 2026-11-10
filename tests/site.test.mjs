@@ -10,7 +10,7 @@ async function files(dir) {
   return (await Promise.all(entries.map(e => e.isDirectory()
     ? files(path.join(dir, e.name)) : path.join(dir, e.name)))).flat();
 }
-test('static payload stays below 96 KiB with no remote runtime assets', async () => {
+test('static payload stays below 160 KiB with no remote runtime assets', async () => {
   const all = await files(root);
   let bytes = 0;
   for (const file of all) {
@@ -19,7 +19,7 @@ test('static payload stays below 96 KiB with no remote runtime assets', async ()
     const source = await readFile(file, 'utf8');
     assert.doesNotMatch(source, /(?:https?:)?\/\/[^\s'"<>]+\.(?:js|css|woff2?)(?:[?'"\s]|$)/);
   }
-  assert.ok(bytes < 96 * 1024, `dist is ${bytes} bytes; budget is 96 KiB`);
+  assert.ok(bytes < 160 * 1024, `dist is ${bytes} bytes; budget is 160 KiB`);
 });
 
 test('HTML and module asset links resolve under a GitHub Pages project subpath', async () => {

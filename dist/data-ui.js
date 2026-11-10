@@ -16,7 +16,6 @@ export class ImuSettings {
     $('infoImu').onclick=()=>this.run(async()=>{
       await this.client.exchange(0,'q',true);
       await send('info imu\n');this.report('Sent info imu. See the results in Serial log.');
-      $('console').open=true;
     });
     this.render();
   }

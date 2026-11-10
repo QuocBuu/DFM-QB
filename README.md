@@ -3,6 +3,21 @@
 Web tĩnh kết nối trực tiếp firmware Flight ESP32-C3 bằng Web Serial. Giám sát và xuất tham số hoạt động trực tiếp qua Web Serial. Full firmware update
 cần backend USB/UART local trong repo firmware (`make web`).
 
+## UI framework và module dùng chung
+
+UI dùng **Bootstrap 5.3.8 subset** được lưu local, cùng module tab/icon/log và flash explorer.
+Quy tắc bắt buộc cho web agent ở [AGENTS.md](AGENTS.md); component, ví dụ sử dụng,
+responsive và giới hạn API được mô tả trong [docs/UI_RULES.md](docs/UI_RULES.md).
+
+- Serial log co giãn theo viewport, có wrap/follow, tải file và xóa; giữ tối đa 500 dòng.
+- Firmware có cây 4 MiB theo offset; chọn vùng để xem dung lượng và thao tác bằng icon.
+  Ghi app/system mở luồng full release; backup NVS + OTA metadata cần Prepare trước.
+  Backend chưa hỗ trợ backup image, ghi từng vùng riêng hoặc raw restore NVS.
+- Chỉ khi thay framework: `npm ci && npm run build:ui`. CSS sinh ra được commit trong
+  `dist/vendor/`, nên chạy trang tĩnh/deploy không cần build ở runtime.
+- `npm test` kiểm tra protocol/layout/assets; `npm run test:ui` chạy browser tests
+  (cài dependency và `npx playwright install chromium` lần đầu).
+
 ## Hợp đồng CMD và settings
 
 Xem [docs/PROTOCOL.md](docs/PROTOCOL.md) trước khi thêm lệnh hoặc chức năng ghi.
@@ -107,7 +122,7 @@ chỉ chạy web tĩnh. Server chỉ bind loopback, không public file firmware,
 3. Web tự gửi `q` để đồng bộ, rồi `i` để đọc. Nút dừng gửi đúng `q`, không có newline.
 4. Xoay board để xem mô hình. Dùng **Đặt mốc tư thế** để lấy tư thế hiện tại làm zero.
 5. Có thể bù lệch gyro khi board đứng yên 3 giây; **Lưu & reboot** ghi profile NVS và
-   kiểm tra áp dụng. Không có lệnh điều khiển motor.
+   kiểm tra áp dụng. DATA1 không điều khiển motor; bench test dùng lệnh riêng `m` / `1`–`4`.
 
 UART qua adapter dùng GPIO20 RX / GPIO21 TX / GND của ESP32-C3. Trình duyệt nhận
 adapter như một serial port; không thể nối chân UART trực tiếp vào máy không có adapter.
@@ -133,7 +148,7 @@ Chỉ một chương trình được mở cổng tại một thời điểm. Fir
 - `dist/serial.js`: Web Serial, lifecycle và lệnh `i`/`q`.
 - `dist/drone.js`: mô hình 3D vẽ bằng Canvas 2D, góc nhìn/zoom và hệ tọa độ.
 - `dist/app.js`, `charts.js`: UI và đồ thị 30 giây; buffer/log giới hạn dung lượng.
-- Không có thư viện 3D, font ngoài hoặc CDN. Tổng `dist/` có giới hạn 96 KiB trong CI sau khi thêm maintenance và catalog lỗi.
+- Không có thư viện 3D, font ngoài hoặc CDN; CSS framework được lưu local. Tổng `dist/` có giới hạn 160 KiB trong CI, gồm Bootstrap subset và component dùng chung.
 - Canvas chỉ vẽ khi tư thế/góc nhìn/kích thước thay đổi; đồ thị chỉ vẽ khi mở.
 - `.github/workflows/pages.yml`: tests trên PR, tests + deploy khi push `main`.
 
@@ -144,7 +159,7 @@ npm test # chạy từ repo web; hoặc npm test --prefix web từ dự án firm
 Tham khảo: [Web Serial chính thức của Chrome](https://developer.chrome.com/docs/capabilities/serial),
 [W3C Motion Sensors](https://www.w3.org/TR/motion-sensors/).
 
-## Kiểm tra bản giao diện tối giản
+## Bằng chứng lịch sử: bản giao diện tối giản trước Bootstrap
 
 - 21 Node tests đạt (gồm contract/codec/DATA1): protocol, quaternion/bias, serial lifecycle, giới hạn 64 KiB và
   đường dẫn asset dưới subpath GitHub Pages. Chạy `npm test` từ repo web.
@@ -213,3 +228,26 @@ Không chạy công cụ serial khác đồng thời với web.
 Hướng dẫn đầy đủ nằm tại `docs/FIRMWARE_UPDATE.md`, `docs/ERROR_CODES.md` và
 `docs/ERROR_REPORTING.md` của repo firmware. Việc import/restore raw NVS tự động
 chưa được triển khai; cập nhật bình thường giữ nguyên NVS nên không cần restore.
+
+## Motor bench test
+
+Trong **Parameters → Motor calib**, chọn **Test motors (m)** rồi **Motor 1–4**; hoặc dùng phím `m`,
+`1`–`4`. Một motor chạy mỗi lần, duty cố định 10%, firmware tự dừng sau 2 giây.
+Phím khác dừng và thoát; dùng **Stop / exit** trên màn hình cảm ứng. `i` mở test
+IMU và phím bất kỳ dừng IMU. Phím thoát không mở chế độ khác trong cùng lần nhấn.
+Không cần Enter. Tháo cánh trước khi thử; chỉ dành cho motor chổi than qua MOSFET.
+
+Cần Flight firmware hỗ trợ `MOTOR START`; web đợi ACK trước khi cho chọn motor.
+Recovery và demo không chạy motor. Đổi cửa sổ/ẩn trang/ngắt kết nối chủ động gửi
+lệnh dừng; mất cáp dựa vào timer firmware. Không tự chạy lại motor sau reconnect.
+
+Parameters uses the same sidebar/tab style as Firmware: **IMU calib** retains gyro
+bias and mounting controls; **Motor calib** adds a top-view layout, CW/CCW arrows,
+physical-corner selectors and **Save motor layout** / Reload. Values are stored in
+firmware NVS and read back before Saved is shown; they survive reboot. Save does
+not reverse motor polarity or configure a flight controller. New firmware and the
+matching settings catalog are required; unknown layouts start unassigned.
+
+Parameter export is Flight-only. Recovery only provides firmware maintenance; the
+web disables parameter export until sys boot identifies Running=ota_0. The local
+updater's raw ROM-based NVS backup is unchanged.

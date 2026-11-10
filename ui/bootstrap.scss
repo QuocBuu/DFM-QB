@@ -1,0 +1,23 @@
+// Bootstrap 5.3.8: only the shared primitives used by the dashboard.
+@import "bootstrap/scss/functions";
+$primary: #245fbd;
+$body-color: #243247;
+$body-bg: #f4f6fa;
+$font-size-base: .875rem;
+$border-radius: .5rem;
+$enable-dark-mode: false;
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+$theme-colors: ("primary": $primary, "secondary": #526175, "danger": #b52b35);
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+@import "bootstrap/scss/root";
+@import "bootstrap/scss/reboot";
+@import "bootstrap/scss/buttons";
+@import "bootstrap/scss/forms/labels";
+@import "bootstrap/scss/forms/form-control";
+@import "bootstrap/scss/forms/form-select";
+@import "bootstrap/scss/forms/form-check";
+@import "bootstrap/scss/nav";
+@import "bootstrap/scss/card";
+@import "bootstrap/scss/helpers/visually-hidden";

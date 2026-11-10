@@ -8,7 +8,7 @@ const fixtures = JSON.parse(await readFile(new URL('./fixtures/config-wire.json'
 const hex = bytes => Buffer.from(bytes).toString('hex');
 
 test('diagnostic command bytes and typed events isolate firmware text from UI', () => {
-  assert.deepEqual(COMMAND, { imuStart: 'i', imuStop: 'q' });
+  assert.deepEqual(COMMAND, { imuStart: 'i', imuStop: 'q', motorStart: 'm' });
   assert.deepEqual(parseDeviceLine('IMU START ICM-20948 address=0x69 WHO_AM_I=0xea'), {type:'imu.started',address:'0x69'});
   assert.equal(parseDeviceLine('IMU n=1 a[g]=0,0,1 g[dps]=0,0,0 T[C]=30 m[uT]=NA').type,'imu.sample');
   assert.equal(parseDeviceLine('IMU STOP').type,'imu.stopped');
@@ -61,3 +61,13 @@ test('bad framing, CRC, lengths and semantic corruption cannot become configurat
     assert.throws(()=>decodeOverrides(b,catalog));
   }
 });
+
+ test('motor acknowledgements validate channel and fixed limits', () => {
+  assert.equal(parseDeviceLine('MOTOR START duty=10 timeout_ms=2000; 1-4 select').type,'motor.started');
+  assert.deepEqual(parseDeviceLine('MOTOR RUN motor=4 duty=10 timeout_ms=2000'),{type:'motor.running',motor:4});
+  assert.equal(parseDeviceLine('MOTOR RUN motor=5 duty=10 timeout_ms=2000').type,'log');
+  assert.equal(parseDeviceLine('MOTOR RUN motor=1 duty=100 timeout_ms=2000').type,'log');
+  assert.equal(parseDeviceLine('MOTOR IDLE timeout').type,'motor.idle');
+  assert.equal(parseDeviceLine('MOTOR STOP').type,'motor.stopped');
+  assert.equal(parseDeviceLine('MOTOR ERROR unavailable=ESP_FAIL').type,'motor.error');
+ });

@@ -40,7 +40,7 @@ function checkedRegistry(registry) {
   const keys = new Map();
   for (const key of registry.settings) {
     if (!Number.isInteger(key.id) || key.id < 1 || key.id > 255 || keys.has(key.id)
-        || !['bool', 'u32'].includes(key.type) || !['range', 'phase1_disarmed'].includes(key.rule)
+        || !['bool', 'u32'].includes(key.type) || !['range', 'phase1_disarmed', 'motor_layout'].includes(key.rule)
         || !uint32(key.minimum) || !uint32(key.maximum) || key.minimum > key.maximum
         || (key.type === 'bool' && key.maximum > 1)
         || (key.rule === 'phase1_disarmed' && (key.type !== 'bool' || key.maximum !== 0))) {
@@ -57,6 +57,17 @@ function checkValue(key, value) {
   if (numeric < key.minimum || numeric > key.maximum) throw new Error(`Out of range: setting ${key.id}`);
   return numeric;
 }
+function checkMotorPositions(overrides, keys) {
+  const positions = new Set();
+  for (const [id, key] of keys) {
+    if (key.rule !== 'motor_layout') continue;
+    const value = overrides.get(id) ?? key.default;
+    if (!value) continue;
+    const position = (value - 1) % 4;
+    if (positions.has(position)) throw new Error('Motor frame positions must be unique.');
+    positions.add(position);
+  }
+}
 export function encodeOverrides(overrides, registry) {
   const keys = checkedRegistry(registry);
   if (!(overrides instanceof Map)) throw new Error('Overrides must be a Map of setting ID to typed value');
@@ -66,6 +77,7 @@ export function encodeOverrides(overrides, registry) {
     if (!keys.has(id)) throw new Error(`Unknown or protected setting ${id}`);
     checkValue(keys.get(id), value);
   }
+  checkMotorPositions(overrides, keys);
   const bytes = new Uint8Array(9 + entries.length * 5), view = new DataView(bytes.buffer);
   bytes.set([0x44, 0x43, 0x46, 0x31, entries.length]);
   entries.forEach(([id, value], i) => { bytes[5 + i * 5] = id; view.setUint32(6 + i * 5, Number(value), true); });
@@ -86,5 +98,6 @@ export function decodeOverrides(bytes, registry) {
     const value = key.type === 'bool' ? numeric === 1 : numeric;
     checkValue(key, value); result.set(id, value); previous = id;
   }
+  checkMotorPositions(result, keys);
   return result;
 }

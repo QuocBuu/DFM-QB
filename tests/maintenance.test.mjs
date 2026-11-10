@@ -42,3 +42,11 @@ test('known and future error codes remain visible with diagnostic details',()=>{
   assert.match(showResult({code:'DRN-9999',stage:'future'}),/Unknown device error/);
   assert.match(showResult({code:'DRN-1023'}),/not confirmed/);
 });
+
+test('Recovery or unidentified app cannot start parameter export',async()=>{
+  const commands=[];
+  const client=new DataClient(async wire=>commands.push(wire));
+  const backup=new ParameterBackup(client,async wire=>commands.push(wire),{canExport:()=>false});
+  await assert.rejects(backup.read(catalog),/requires Flight/);
+  assert.deepEqual(commands,[]);
+});

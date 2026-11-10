@@ -1,6 +1,6 @@
 # Mini drone — hợp đồng CMD, settings và ghi dữ liệu
 
-Revision tài liệu: 1, ngày 2026-10-09.
+Revision tài liệu: 2, ngày 2026-10-11.
 
 Bổ sung: nền cập nhật profile chẩn đoán Flight riêng đã có trong
 [DATA_UPDATE.md](DATA_UPDATE.md). DATA1 không mở rộng quyền CFG1 và không triển khai
@@ -14,7 +14,7 @@ trong repo firmware; bản xuất tương ứng là `dist/settings-catalog.json`
 |---|---|
 | USB/UART, phím `i`/`q`, dữ liệu IMU text | Firmware và web đã sử dụng |
 | `@CFG1` GET/SET, snapshot DCF1 | Firmware và Python tool đã sử dụng |
-| Metadata settings JSON + codec CFG1 JavaScript | Đã có, kiểm tra bằng cùng vector với Python; chưa có nút ghi trên web |
+| Metadata settings JSON + codec CFG1 JavaScript | Đã có, kiểm tra bằng cùng vector với Python; web ghi các key motor layout; các key khác chỉ đọc/bảo toàn |
 | Discovery, schema do thiết bị trả về, giao dịch chống ghi đè | Thiết kế ở mục 7; **chưa có trong firmware/web** |
 
 Không đổi ý nghĩa của lệnh/key đã phát hành. Không tái sử dụng ID setting, kể cả
@@ -37,16 +37,32 @@ chỉ một maintenance client được thao tác; không chạy web và termina
 | CMD | Byte gửi | Phản hồi | Hiệu ứng |
 |---|---|---|---|
 | Bắt đầu IMU | `69` hex (`i`) | `IMU START ...`, rồi mẫu IMU | Bật stream, không ghi flash |
+| Vào test motor | `6d` hex (`m`) | `MOTOR START duty=10 timeout_ms=2000; ...` | Chưa quay; mở mode test |
+| Chọn motor | `31`–`34` hex (`1`–`4`) trong mode motor | `MOTOR RUN motor=N duty=10 timeout_ms=2000` | Một motor, PWM 10%, tối đa 2 giây |
+| Thoát motor | Phím ngoài `1`–`4` | `MOTOR STOP` | Dừng và tiêu thụ phím thoát |
 | Dừng IMU | `71` hex (`q`) | `IMU STOP` | Tắt stream, không ghi flash |
 | Đọc settings | `@CFG1 ... GET - ...` + LF | `OK` snapshot hoặc `ERR` | Chỉ đọc |
 | Thay settings | `@CFG1 ... SET <hex> ...` + LF | `OK` snapshot hoặc `ERR` | Thay toàn bộ editable overrides |
 
-`i` và `q` là **đúng một byte, không Enter, không CR/LF**. Firmware chỉ nhận phím
-này khi buffer dòng CLI đang rỗng. Không nhét `q` vào giữa một frame cấu hình.
-Khi chuyển từ terminal có dòng dở sang machine client, gửi LF riêng để đồng bộ
-parser, rồi mới gửi lệnh. Giao dịch cấu hình của Python dùng LF dẫn đầu cho việc này.
-Web IMU hiện tại giả định buffer CLI sạch, gửi `q`, đợi 180 ms rồi gửi `i`; khoảng
-đợi đó không phải ACK chắc chắn. Client ghi trong tương lai phải đợi ACK có hạn chót.
+`i`, `m`, `1`–`4`, `q` là byte đơn **không Enter, không CR/LF**. Ở mode IMU,
+phím bất kỳ dừng stream; ở mode motor, chỉ `1`–`4` chọn motor, phím khác dừng và
+thoát (bao gồm CR/LF). Phím thoát không chạy thêm lệnh. Ngoại lệ parser `in...`
+giữ tương thích các dòng `info imu/data/help` và dừng IMU trước khi xử lý dòng.
+`q` khi idle vẫn trả `IMU STOP`; `q` thoát motor trả cả `MOTOR STOP` và `IMU STOP`
+để giữ stop barrier của client DATA1. Client gửi `q` và đợi ACK trước frame cấu hình.
+
+Khi timer motor hết 2 giây, firmware trả `MOTOR IDLE timeout`, các output LOW,
+mode test vẫn mở. Chọn lại bằng một phím mới; không có heartbeat/tự retry motor.
+Web gửi `q\nm` khi chọn nút Test motors và đợi `MOTOR START` trước khi cho chọn
+motor; firmware cũ không ACK sẽ không mở nút. Web Stop gửi `\nq` để dừng mode
+và xóa lệnh dở trên firmware cũ. Serial disconnect gửi `q`; khi mất cáp, timer
+firmware vẫn dừng PWM. Recovery từ chối motor test. Duty cố định làm tròn xuống
+102/1024 ở 20 kHz; không có API duty tùy ý hay arming.
+
+Ngoài mode test, phím nhanh chỉ bắt tại biên lệnh; không nhét phím vào frame đang
+gửi. Khi chuyển từ terminal có dòng dở sang machine client, gửi LF để đồng bộ
+parser. Trong mode test, byte từ cả USB/UART đều được xử lý như phím test kể cả
+khi cổng kia có dòng cũ chưa xong; vẫn chỉ hỗ trợ một client thao tác trên bàn.
 
 CLI cũ (`sys info`, `sys reboot`, `BOOT_MAIN`, `wifi config ...`) cần newline;
 đó là giao diện bảo trì cho người, không phải API để web suy đoán phản hồi ghi.
@@ -56,7 +72,7 @@ Lệnh reboot, credential, OTA và calibration không được chạy như hệ 
 ### IMU legacy
 
 ```text
-IMU START ICM-20948 address=0x69 WHO_AM_I=0xea mag=AK09916 rate=10Hz; q stops
+IMU START ICM-20948 address=0x69 WHO_AM_I=0xea mag=AK09916 rate=10Hz; any key stops
 IMU n=1 a[g]=0.0000,0.0000,1.0000 g[dps]=0.000,0.000,0.000 T[C]=30.00 m[uT]=NA
 IMU STOP
 IMU ERROR init=ESP_FAIL; ...
@@ -306,3 +322,46 @@ cần Node: không cần Python, không import file ngoài repo. CI web kiểm t
 vectors, unsafe values, protected IDs, checksum, snapshot semantics và budget
 64 KiB. Khi release firmware thay registry, cập nhật bản export ở repo web để hỗ
 trợ legacy; discovery tương lai mới bỏ được bước phát hành web cho mỗi key mới.
+
+## Motor settings UI (2026-10-11)
+
+Parameters has nested **IMU calib** and **Motor calib** tabs, independent of Firmware.
+Motor calib contains the bench controls, a top-view CW/CCW drawing, and persistent
+position/rotation selectors. Selecting a tab or changing a draft never sends SET;
+leaving the motor controls while testing sends the existing stop sequence `\nq`.
+The global `m` shortcut opens Parameters → Motor calib before starting the test.
+
+The generated registry adds IDs 4–7, `motor.M1_LAYOUT` … `motor.M4_LAYOUT`, using
+`motor_layout` validation. Each u32 is 0 (unknown), 1–4 (CW at front-left,
+front-right, rear-left, rear-right), or 5–8 (CCW at the same corners). Assigned
+corners must be unique. The client validates the whole snapshot, retains all
+unrelated overrides, and uses the existing CRC-protected CFG1 protocol.
+
+`motor-settings.js` owns GET/SET IDs, registry matching, timeout and readback.
+Save requires a successful load from the current connection, a stop ACK and an
+unchanged pre-save GET. It sends SET once, then requires identical ACK and GET
+bytes before showing Saved. On an uncertain write result, save is disabled until
+Reload. No retry after reconnect and no automatic reboot. CFG1 has no atomic CAS;
+the pre-save comparison is only a stale-draft check, not multi-client isolation.
+
+The diagram is an editable record, not live sensor evidence. Unknown corners have
+no rotation arrow; conflicting assignments are marked and cannot be saved. CW/CCW
+records do not electrically reverse brushed MOSFET outputs. The base concepts of
+position and rotation are separate, as in [PX4 actuator configuration](https://docs.px4.io/main/en/config/actuators);
+this project's output numbering is its own BSP contract, not PX4 numbering.
+
+## Recovery scope update
+
+CFG1 and DATA1 parameter commands are Flight-only. Recovery preserves bare q ->
+IMU STOP for connection synchronization, but has no IMU/calibration/parameter handler.
+Web parameter export stays disabled until sys boot identifies Running=ota_0. Export
+from Flight before entering Recovery. ROM-based local NVS backup is unchanged.
+
+
+## Nguồn sinh contract dùng chung
+
+Repo firmware cung cấp `make contracts-generate` / `make contracts-check` cho cả
+settings (`config/registry.csv`), lỗi (`config/errors.csv`) và DATA1 (`config/profile.json`).
+Không sửa trực tiếp `dist/errors.js`, `dist/settings-catalog.json`, `dist/profile-contract.js`
+hay fixture sinh ra. Thay đổi codec phải qua test vector C/Python/JS; schema/version
+đã phát hành không được đổi ý nghĩa. Ghi rollout vào `docs/WEB_CHANGES.md` của firmware.

@@ -1,54 +1,187 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#ffffff"><meta name="description" content="Connect an ESP32-C3 via USB or UART to view drone attitude and ICM-20948 data.">
-<title>Mini drone · Maintenance</title>
-<link rel="icon" href="./icon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4f6fa">
+  <meta name="description" content="USB diagnostics and firmware maintenance for Mini drone ESP32-C3.">
+  <title>Mini drone · Device console</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./vendor/bootstrap.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main>
-<header><div><h1>Mini drone</h1><p>ESP32-C3 / ICM-20948</p></div><div class="actions"><span id="connectionBadge" class="status">DISCONNECTED</span><button id="demo">Try demo</button><button id="connect" class="primary">Connect USB / UART</button></div></header>
-<div id="notice" class="notice" role="status">Plug in the board, click Connect USB / UART, then select a port. Close Serial Monitor if it is open.</div>
-<nav class="tabs" role="tablist" aria-label="Device pages"><button id="tab-monitor" role="tab" aria-controls="panel-monitor" aria-selected="true" tabindex="0">Monitor</button><button id="tab-parameters" role="tab" aria-controls="panel-parameters" aria-selected="false" tabindex="-1">Parameters</button><button id="tab-firmware" role="tab" aria-controls="panel-firmware" aria-selected="false" tabindex="-1">Firmware</button><button id="tab-log" role="tab" aria-controls="panel-log" aria-selected="false" tabindex="-1">Serial log</button></nav>
-<section id="panel-monitor" role="tabpanel" aria-labelledby="tab-monitor">
-<div class="toolbar"><div class="actions"><button id="stream" disabled>Start streaming</button><button id="zero" disabled>Zero attitude</button><span class="muted">Keys i / q</span></div><div class="telemetry"><i id="dataDot"></i><span id="sampleState">Waiting for data</span><b id="rate">— Hz</b><span id="sampleCount">0 samples</span><span id="temperature">— °C</span></div></div>
-<div class="dashboard">
-<section class="model" aria-label="Drone attitude">
-<div class="section-head"><h2>Attitude</h2><span id="source" class="source">OFFLINE</span><div class="view-switch" role="group" aria-label="View"><button class="selected" data-view="perspective">3D</button><button data-view="top">Top</button><button data-view="front">Front</button></div></div>
-<div id="viewport" class="viewport" aria-label="Drone model showing IMU attitude"><div id="viewportHint" class="viewport-hint"><span>WAITING FOR BOARD</span><small>Connect to see live movement</small></div></div>
-<p class="view-note">Drag to rotate the view · Scroll to zoom · Green marks the nose</p>
-</section>
-<section class="readings" aria-label="IMU readings">
-<div class="angles"><div><span>Roll</span><b id="roll">—<small>°</small></b></div><div><span>Pitch</span><b id="pitch">—<small>°</small></b></div><div><span>Yaw</span><b id="yaw">—<small>°</small></b></div></div>
-<h2>Sensors · raw data</h2>
-<table><thead><tr><th scope="col">Measurement</th><th scope="col">X</th><th scope="col">Y</th><th scope="col">Z</th></tr></thead><tbody><tr id="accel"><th scope="row">Acceleration <small>g</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr><tr id="gyro"><th scope="row">Gyro <small>°/s</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr><tr id="mag"><th scope="row">Magnetic field <small>µT</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr></tbody></table>
-<p class="muted"><span id="imuIdentity">I²C —</span> · 115200 baud · 10 Hz</p>
-<p class="muted">Roll / pitch combine gyroscope and accelerometer data. Yaw is relative and may drift; the magnetometer is not yet used as a compass.</p>
-</section>
-</div>
-<details id="historyPanel"><summary>Attitude history · 30 seconds</summary><p class="legend"><span>Roll</span><span>Pitch</span><span>Yaw</span></p><canvas id="attitudeChart" aria-label="Roll, pitch and yaw chart over 30 seconds"></canvas></details>
-</section>
-<section id="panel-parameters" role="tabpanel" aria-labelledby="tab-parameters" hidden><h2>Saved parameters</h2><p>Read configuration and IMU calibration from the board into a checked JSON file. Unsaved browser edits are excluded.</p><button id="backupParameters" disabled>Read & download parameters</button><p id="backupResult" role="status"></p><details id="settings" open><summary>IMU settings · Gyro & mounting</summary><p>X points forward, Y left, Z up.</p><div class="settings-fields"><label>Rotation around Z <select id="mount"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label><label><input id="flipped" type="checkbox"> IMU mounted upside down (180° rotation around X)</label></div><div class="actions"><button id="calibrate" disabled>Calibrate gyro bias</button><span id="calibrationStatus">Keep the board still for 3 seconds.</span></div><p>Gyro bias X / Y / Z: <b id="profileBias">Not measured</b></p><p id="profileStatus" role="status">No board connected.</p><div class="actions"><button id="saveProfile" disabled>Save & reboot</button><button id="loadProfile" disabled>Reload / Discard edits</button><button id="applyProfile" disabled>Reboot to apply</button><button id="infoImu" disabled>info imu</button></div><p class="muted">Save to the board, reboot, then verify the active settings. Save time uses your computer clock. Zeroing attitude only affects this web session.</p></details>
-</section>
-<section id="panel-firmware" role="tabpanel" aria-labelledby="tab-firmware" hidden>
-<h2>Full firmware update · USB / UART</h2>
-<p>Update bootloader, partition table, Recovery and Flight as one release. NVS is backed up first and preserved on the board. The updater reads back every written image before reporting completion.</p>
-<div class="actions"><button id="enterRecovery" disabled>Enter Recovery</button><button id="updaterRefresh">Refresh updater / ports</button></div>
-<p class="muted">Terminal commands: <code>sys recovery</code> or <code>ENTER_OTA</code> + Enter. Build a release with <code>make firmware-bundle</code>. Full updates also work without a browser: <code>make update-full FILE=firmware-full.zip PORT=/dev/ttyACM0</code>.</p>
-<ol><li>Select a complete release ZIP and the attached port.</li><li>Prepare: close the dashboard serial connection, validate the release, read NVS and save a verified backup.</li><li>Download the backup, then confirm the full update. Keep power connected.</li></ol>
-<div class="settings-fields"><label>Release ZIP <input id="firmwareFile" type="file" accept=".zip"></label><label>Port <select id="firmwarePort" aria-label="Firmware USB/UART port"></select></label></div>
-<div class="actions"><button id="prepareFirmware" disabled>1. Prepare & back up</button><button id="downloadBackup" disabled>2. Download NVS backup</button></div>
-<p>The NVS backup contains saved parameters, calibration and Wi-Fi credentials. Keep it private. Flashing Recovery/bootloader can require ROM USB/UART repair if power fails.</p>
-<label><input id="confirmFirmware" type="checkbox"> I saved the backup and want to replace the full firmware.</label>
-<p><button id="installFirmware" class="primary" disabled>3. Install full firmware</button></p>
-<pre id="firmwareResult" role="status" aria-live="polite">Checking local updater…</pre>
-<p class="muted">Full update boots into Recovery after a manual reset. Use <code>BOOT_MAIN</code> to start Flight. A verified write does not yet confirm that Flight runs correctly. GPIO2 held low through reset for 3 seconds selects Recovery; GPIO9 BOOT + reset enters ROM download for USB/UART repair.</p>
-</section>
-<section id="panel-log" role="tabpanel" aria-labelledby="tab-log" hidden>
-<details id="console" open><summary>Serial log</summary><div class="actions"><button id="export">Download log</button><button id="clear">Clear</button><span class="muted">Last 500 lines</span></div><pre id="log" tabindex="0" aria-label="Serial log">Ready. No device connected.</pre></details>
-</section>
-<footer>IMU diagnostics · Motors are locked in Phase 1 firmware. Data is processed on your computer.</footer>
+<main class="app-shell">
+  <header class="app-header">
+    <div class="brand"><img class="brand-icon" src="./icon.svg" alt="QB" width="42" height="42"><div><h1>Mini drone</h1><p>ESP32-C3 <span class="separator">/</span> Device console</p></div></div>
+    <div class="actions"><span id="connectionBadge" class="status">DISCONNECTED</span><button id="demo" class="btn btn-secondary">Try demo</button><button id="connect" class="btn btn-primary">Connect USB / UART</button></div>
+  </header>
+  <div id="notice" class="notice" role="status">Connect the board via USB / UART to begin.</div>
+  <nav id="mainTabs" class="nav nav-pills page-tabs" role="tablist" aria-label="Device pages">
+    <button id="tab-monitor" class="nav-link active" role="tab" aria-controls="panel-monitor" aria-selected="true" tabindex="0" data-icon="monitor">Monitor</button>
+    <button id="tab-parameters" class="nav-link" role="tab" aria-controls="panel-parameters" aria-selected="false" tabindex="-1" data-icon="sliders">Parameters</button>
+    <button id="tab-firmware" class="nav-link" role="tab" aria-controls="panel-firmware" aria-selected="false" tabindex="-1" data-icon="chip">Firmware</button>
+    <button id="tab-log" class="nav-link" role="tab" aria-controls="panel-log" aria-selected="false" tabindex="-1" data-icon="terminal">Serial log</button>
+  </nav>
+  <section id="panel-monitor" class="page-panel" role="tabpanel" aria-labelledby="tab-monitor" tabindex="0">
+    <div class="panel-toolbar"><div class="actions"><button id="stream" class="btn btn-secondary" disabled>Start streaming</button><button id="zero" class="btn btn-secondary" disabled>Zero attitude</button></div><div class="telemetry"><i id="dataDot"></i><span id="sampleState">Waiting for data</span><b id="rate">— Hz</b><span id="sampleCount">0 samples</span><span id="temperature">— °C</span></div></div>
+    <div class="dashboard">
+      <section class="card model" aria-label="Drone attitude">
+        <div class="card-header"><h2>Attitude</h2><span id="source" class="source">OFFLINE</span><div class="view-switch" role="group" aria-label="View"><button class="btn btn-secondary selected" data-view="perspective">3D</button><button class="btn btn-secondary" data-view="top">Top</button><button class="btn btn-secondary" data-view="front">Front</button></div></div>
+        <div id="viewport" class="viewport" aria-label="Drone model showing IMU attitude"><div id="viewportHint" class="viewport-hint"><span>WAITING FOR BOARD</span><small>Connect to see live movement</small></div></div>
+        <p class="view-note">Drag to orbit · Scroll to zoom · Blue = nose</p>
+      </section>
+      <section class="card readings" aria-label="IMU readings">
+        <div class="card-header"><h2>Live readings</h2><span class="muted">ICM-20948</span></div>
+        <div class="card-body">
+          <div class="angles"><div><span>Roll</span><b id="roll">—<small>°</small></b></div><div><span>Pitch</span><b id="pitch">—<small>°</small></b></div><div><span>Yaw</span><b id="yaw">—<small>°</small></b></div></div>
+          <div class="table-scroll"><table><thead><tr><th scope="col">Sensor</th><th scope="col">X</th><th scope="col">Y</th><th scope="col">Z</th></tr></thead><tbody><tr id="accel"><th scope="row">Accel <small>g</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr><tr id="gyro"><th scope="row">Gyro <small>°/s</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr><tr id="mag"><th scope="row">Mag <small>µT</small></th><td><b>—</b></td><td><b>—</b></td><td><b>—</b></td></tr></tbody></table></div>
+          <p class="muted sensor-caption"><span id="imuIdentity">I²C —</span> · 115200 baud · 10 Hz</p>
+          <details class="help"><summary>About these readings</summary><p>Roll/pitch combine gyro and acceleration. Yaw is relative and may drift; it is not a compass heading.</p></details>
+        </div>
+      </section>
+    </div>
+    <details id="historyPanel" class="card disclosure"><summary>Attitude history <span class="muted">30 seconds</span></summary><div class="card-body"><p class="legend"><span>Roll</span><span>Pitch</span><span>Yaw</span></p><canvas id="attitudeChart" aria-label="Roll, pitch and yaw chart over 30 seconds"></canvas></div></details>
+  </section>
+  <section id="panel-parameters" class="page-panel" role="tabpanel" aria-labelledby="tab-parameters" tabindex="0" hidden>
+    <div class="page-heading"><div><p class="eyebrow">Configuration</p><h2>Parameters</h2></div><button id="backupParameters" class="btn btn-secondary" data-icon="download" disabled>Export JSON</button></div>
+    <p id="backupResult" class="inline-result" role="status"></p>
+    <div class="card parameter-layout">
+      <aside class="parameter-sidebar" aria-label="Calibration sections">
+        <div class="sidebar-caption">CALIBRATION</div>
+        <div id="parameterTabs" class="nav nav-pills parameter-tabs" role="tablist" aria-label="Parameter calibration" aria-orientation="vertical">
+          <button id="parameter-imu" class="nav-link active" role="tab" aria-controls="parameter-panel-imu" aria-selected="true" tabindex="0" data-icon="sliders">IMU calib</button>
+          <button id="parameter-motor" class="nav-link" role="tab" aria-controls="parameter-panel-motor" aria-selected="false" tabindex="-1" data-icon="refresh">Motor calib</button>
+        </div>
+      </aside>
+      <div class="parameter-content">
+        <div class="parameter-breadcrumb">Parameters <span>/</span> <b id="parameterSelection">IMU calib</b></div>
+        <section id="parameter-panel-imu" role="tabpanel" aria-labelledby="parameter-imu" tabindex="0">
+    <section id="settings" class="card settings-card">
+      <div class="card-header"><h3>IMU calibration</h3><span class="muted">Stored on device</span></div>
+      <div class="card-body">
+        <p class="muted">Frame axes: X forward, Y left, Z up. Match the IMU mounting orientation to the nose of the drone.</p>
+        <div class="settings-fields"><label for="mount" class="form-label">Mount rotation<select id="mount" class="form-select"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label><label class="check-label"><input id="flipped" class="form-check-input" type="checkbox"> Mounted upside down</label></div>
+        <div class="calibration-row"><button id="calibrate" class="btn btn-secondary" disabled>Calibrate gyro</button><span id="calibrationStatus" class="muted">Keep still for 3 seconds.</span></div>
+        <dl class="bias-readout"><dt>Bias X / Y / Z</dt><dd id="profileBias">Not measured</dd></dl>
+        <p id="profileStatus" class="inline-result" role="status">No board connected.</p>
+        <div class="actions"><button id="saveProfile" class="btn btn-primary" disabled>Save & reboot</button><button id="loadProfile" class="btn btn-secondary" data-icon="refresh" disabled>Reload</button><button id="applyProfile" class="btn btn-secondary" disabled>Apply reboot</button><button id="infoImu" class="btn btn-secondary" data-icon="terminal" disabled>Inspect</button></div>
+      </div>
+    </section>
+    <details class="help"><summary>Calibration & backup notes</summary><p>X forward, Y left, Z up. Save writes the draft, reboots and verifies active settings. Zero attitude only affects this session. JSON export reads saved parameters, excludes browser drafts and Wi-Fi credentials.</p></details>
+        </section>
+        <section id="parameter-panel-motor" role="tabpanel" aria-labelledby="parameter-motor" tabindex="0" hidden>
+<section class="card motor-layout-card" aria-label="Motor positions and rotation">
+      <div class="card-header"><h3>Motor layout · top view</h3><span id="motorLayoutState" class="muted">Unverified preview</span></div>
+      <div class="card-body motor-layout-body">
+        <figure class="motor-diagram">
+          <svg viewBox="0 0 380 350" role="img" aria-labelledby="motorDiagramTitle motorDiagramDesc">
+            <title id="motorDiagramTitle">Motor positions and CW / CCW rotation, viewed from above</title>
+            <desc id="motorDiagramDesc">The nose points up. Each corner shows the motor assigned in the settings below. Unassigned corners have no rotation arrow.</desc>
+            <defs><marker id="cwArrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#245fbd"/></marker><marker id="ccwArrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#146346"/></marker></defs>
+            <path d="M90 105 290 270 M290 105 90 270" stroke="#bdc9d9" stroke-width="16" stroke-linecap="round"/>
+            <path d="M190 143V47m-8 10 8-10 8 10" stroke="#245fbd" stroke-width="3" fill="none"/>
+            <text x="190" y="26" class="frame-nose">NOSE / X</text>
+            <rect x="155" y="152" width="70" height="65" rx="12" fill="#e5edfc" stroke="#245fbd"/>
+            <text x="190" y="181" class="frame-label">IMU</text><text x="190" y="200" class="rotor-direction">frame axes</text>
+            <path d="M157 186h-27m8-7-8 7 8 7" stroke="#245fbd" stroke-width="2" fill="none"/>
+            <text x="131" y="174" class="rotor-direction">Y</text>
+            <g data-motor-position="1" transform="translate(90 105)"><circle r="47" fill="#fff" stroke="#dce2eb"/>
+          <path class="rotation-cw" d="M0 -39 A39 39 0 1 1 -39 0" fill="none" stroke="#245fbd" stroke-width="3" marker-end="url(#cwArrow)" visibility="hidden"/>
+          <path class="rotation-ccw" d="M0 -39 A39 39 0 1 0 39 0" fill="none" stroke="#146346" stroke-width="3" marker-end="url(#ccwArrow)" visibility="hidden"/>
+          <text class="rotor-id" y="-2">—</text><text class="rotor-direction" y="18">Unassigned</text><text class="rotor-position" y="66">Front left</text></g><g data-motor-position="2" transform="translate(290 105)"><circle r="47" fill="#fff" stroke="#dce2eb"/>
+          <path class="rotation-cw" d="M0 -39 A39 39 0 1 1 -39 0" fill="none" stroke="#245fbd" stroke-width="3" marker-end="url(#cwArrow)" visibility="hidden"/>
+          <path class="rotation-ccw" d="M0 -39 A39 39 0 1 0 39 0" fill="none" stroke="#146346" stroke-width="3" marker-end="url(#ccwArrow)" visibility="hidden"/>
+          <text class="rotor-id" y="-2">—</text><text class="rotor-direction" y="18">Unassigned</text><text class="rotor-position" y="66">Front right</text></g><g data-motor-position="3" transform="translate(90 270)"><circle r="47" fill="#fff" stroke="#dce2eb"/>
+          <path class="rotation-cw" d="M0 -39 A39 39 0 1 1 -39 0" fill="none" stroke="#245fbd" stroke-width="3" marker-end="url(#cwArrow)" visibility="hidden"/>
+          <path class="rotation-ccw" d="M0 -39 A39 39 0 1 0 39 0" fill="none" stroke="#146346" stroke-width="3" marker-end="url(#ccwArrow)" visibility="hidden"/>
+          <text class="rotor-id" y="-2">—</text><text class="rotor-direction" y="18">Unassigned</text><text class="rotor-position" y="66">Rear left</text></g><g data-motor-position="4" transform="translate(290 270)"><circle r="47" fill="#fff" stroke="#dce2eb"/>
+          <path class="rotation-cw" d="M0 -39 A39 39 0 1 1 -39 0" fill="none" stroke="#245fbd" stroke-width="3" marker-end="url(#cwArrow)" visibility="hidden"/>
+          <path class="rotation-ccw" d="M0 -39 A39 39 0 1 0 39 0" fill="none" stroke="#146346" stroke-width="3" marker-end="url(#ccwArrow)" visibility="hidden"/>
+          <text class="rotor-id" y="-2">—</text><text class="rotor-direction" y="18">Unassigned</text><text class="rotor-position" y="66">Rear right</text></g>
+          </svg>
+          <figcaption>Positions are relative to the drone nose. This drawing shows settings, not a measured motor direction.</figcaption>
+        </figure>
+        <div class="rotation-guide">
+          <div class="rotation-key"><svg viewBox="0 0 60 60" role="img" aria-label="Clockwise arrow"><path d="M30 9 A21 21 0 1 1 9 30" fill="none" stroke="#245fbd" stroke-width="3"/><path d="m4 33 5-9 5 9" fill="none" stroke="#245fbd" stroke-width="3"/></svg><div><b>CW</b><span>Clockwise</span></div></div>
+          <div class="rotation-key"><svg viewBox="0 0 60 60" role="img" aria-label="Counter-clockwise arrow"><path d="M30 9 A21 21 0 1 0 51 30" fill="none" stroke="#146346" stroke-width="3"/><path d="m46 33 5-9 5 9" fill="none" stroke="#146346" stroke-width="3"/></svg><div><b>CCW</b><span>Counter-clockwise</span></div></div>
+          <p class="muted">Always observe from above. Record the direction you see during a motor test.</p>
+        </div>
+      </div>
+    </section>
+    <section class="card motor-test" aria-label="Motor bench test">
+      <div class="card-header"><h3>Motor test</h3><span class="muted">10% PWM</span></div>
+      <div class="card-body">
+        <p id="motorStatus" role="status">Remove propellers before testing. Fixed 10% · 2 seconds per press.</p>
+        <div class="actions">
+          <button id="motorStart" class="btn btn-secondary" disabled>Test motors (m)</button>
+          <button class="btn btn-secondary" data-motor="1" disabled>Motor 1</button>
+          <button class="btn btn-secondary" data-motor="2" disabled>Motor 2</button>
+          <button class="btn btn-secondary" data-motor="3" disabled>Motor 3</button>
+          <button class="btn btn-secondary" data-motor="4" disabled>Motor 4</button>
+          <button id="motorStop" class="btn btn-secondary" disabled>Stop / exit</button>
+        </div>
+        <details class="help"><summary>Test keys</summary><p>Press m to enter motor test, then 1–4 to run one motor at a time. Any other key stops and exits. Press i to test IMU; any key stops it. Commands need no Enter. Brushed motors via MOSFET only.</p></details>
+      </div>
+    </section>
+    <section class="card motor-settings-card">
+      <div class="card-header"><h3>Position & rotation</h3><span class="muted">Stored on device</span></div>
+      <div class="card-body">
+        <p class="muted">Motor numbers identify GPIO outputs. Assign each output to its physical corner and observed rotation. These settings do not reverse the motor electrically.</p>
+        <div class="table-scroll"><table class="motor-settings-table"><thead><tr><th scope="col">Output</th><th scope="col">Frame position</th><th scope="col">Observed rotation</th></tr></thead><tbody id="motorSettingsRows"></tbody></table></div>
+        <p id="motorSettingsStatus" class="inline-result" role="status">Connect and reload to read saved motor settings.</p>
+        <div class="actions"><button id="saveMotorSettings" class="btn btn-primary" disabled>Save motor layout</button><button id="loadMotorSettings" class="btn btn-secondary" data-icon="refresh" disabled>Reload</button></div>
+        <details class="help"><summary>How to verify</summary><p>Remove propellers. Mark the drone nose, test M1–M4 one at a time, then record each motor's corner and rotation. Save stores the layout and verifies readback. An unassigned motor remains unknown. The firmware does not yet implement flight control or validate the airframe for flight.</p></details>
+      </div>
+    </section>
+        </section>
+      </div>
+    </div>
+  </section>
+  <section id="panel-firmware" class="page-panel" role="tabpanel" aria-labelledby="tab-firmware" tabindex="0" hidden>
+    <div class="page-heading"><div><p class="eyebrow">ESP32-C3 / Flash explorer</p><h2>Firmware <span class="heading-tag">4 MiB</span></h2></div><div class="actions"><span id="updaterStatus" class="status" role="status">CHECKING UPDATER</span><button id="enterRecovery" class="btn btn-secondary icon-action" data-icon="shield" title="Enter Recovery" aria-label="Enter Recovery" disabled></button><button id="updaterRefresh" class="btn btn-secondary icon-action" data-icon="refresh" title="Refresh updater and ports" aria-label="Refresh updater and ports"></button></div></div>
+    <div class="card flash-card">
+      <aside class="flash-sidebar" aria-label="Flash regions">
+        <div class="sidebar-caption">MEMORY MAP <span>OFFSET</span></div>
+        <div id="flashTabs" class="nav nav-pills flash-tree" role="tablist" aria-label="Flash regions" aria-orientation="vertical">
+          <button id="region-full" class="nav-link active flash-root" role="tab" aria-controls="region-panel-full" aria-selected="true" tabindex="0" data-icon="folder">Flash <small>0x000000</small></button>
+        </div>
+        <p class="map-note">Fixed layout · 4,194,304 bytes<br>Allocated space, not image usage.</p>
+      </aside>
+      <div class="flash-content">
+        <div class="flash-breadcrumb">Flash <span>/</span> <b id="flashSelection">Full flash</b></div>
+        <div id="flashPanels">
+          <section id="region-panel-full" role="tabpanel" aria-labelledby="region-full" tabindex="0">
+            <div class="pane-heading"><div><p class="eyebrow">Device storage</p><h3>Full flash</h3></div><span class="capacity">4 MiB</span></div>
+            <div id="flashStrip" class="flash-strip" role="img" aria-label="Allocated flash: 32 KiB bootloader, 4 KiB table, 20 KiB NVS, 8 KiB OTA metadata, 960 KiB Recovery, 3 MiB Flight"></div>
+            <div class="flash-scale"><span>0x000000</span><span>0x400000 · end exclusive</span></div>
+            <div class="map-legend"><span><i class="swatch recovery-swatch"></i>Recovery · 960 KiB</span><span><i class="swatch flight-swatch"></i>Flight · 3 MiB</span><span>System + data · 64 KiB</span></div>
+            <details id="updateFlow" class="update-flow" open>
+              <summary>Install full release <span class="muted">ZIP → Backup → Write</span></summary>
+              <p class="muted">Writes bootloader, table, Recovery and Flight. Keeps NVS.</p>
+              <div class="settings-fields"><label class="form-label" for="firmwareFile">Release ZIP<input id="firmwareFile" class="form-control" type="file" accept=".zip"></label><label class="form-label" for="firmwarePort">USB / UART port<select id="firmwarePort" class="form-select"><option value="">Select a port</option></select></label></div>
+              <div class="update-steps"><button id="prepareFirmware" class="btn btn-secondary" data-icon="shield" disabled>1. Prepare backup</button><button id="downloadBackup" class="btn btn-secondary" data-icon="download" disabled>2. Save backup</button></div>
+              <label class="check-label confirm-label"><input id="confirmFirmware" class="form-check-input" type="checkbox"> Backup saved. Replace the full firmware.</label>
+              <button id="installFirmware" class="btn btn-primary" data-icon="upload" disabled>3. Write firmware</button>
+              <p class="update-caution">Backup contains Wi-Fi credentials. Keep it private. Keep power connected during writing.</p>
+            </details>
+          </section>
+        </div>
+      </div>
+    </div>
+    <section class="card output-panel"><div class="card-header"><h3>Update output</h3><span class="muted">Latest status</span></div><pre id="firmwareResult" class="log-output log-wrap" tabindex="0" aria-label="Firmware update details">Checking local updater…</pre></section>
+    <details class="help"><summary>Local updater & recovery help</summary><p>For flash operations, run <code>make web</code> in the firmware repository and open <code>http://127.0.0.1:8080</code>. Static hosting supports monitoring and parameter export. Build the release with <code>make firmware-bundle</code>.</p><p>After a verified write, reset into Recovery. Send <code>BOOT_MAIN</code> to start Flight. Readback verifies bytes, not runtime behavior. GPIO2 low for 3 seconds at reset selects Recovery; GPIO9 BOOT + reset enters ROM repair.</p></details>
+  </section>
+  <section id="panel-log" class="page-panel log-page" role="tabpanel" aria-labelledby="tab-log" tabindex="0" hidden>
+    <div class="page-heading"><div><p class="eyebrow">USB / UART</p><h2>Serial log</h2></div><span class="muted">500-line buffer</span></div>
+    <section id="console" class="card log-panel" aria-label="Serial log viewer">
+      <div class="card-header"><span class="log-caption"><i class="terminal-dot"></i>Console <span data-log-count class="muted">0 / 500</span></span><div class="actions"><button class="btn btn-secondary icon-action" data-log-follow data-icon="follow" aria-pressed="true" title="Follow latest line" aria-label="Follow latest line"></button><button class="btn btn-secondary icon-action" data-log-wrap data-icon="wrap" aria-pressed="false" title="Wrap long lines" aria-label="Wrap long lines"></button><span class="toolbar-divider"></span><button id="export" class="btn btn-secondary icon-action" data-icon="download" title="Download log" aria-label="Download log"></button><button id="clear" class="btn btn-secondary icon-action" data-icon="trash" title="Clear log" aria-label="Clear log"></button></div></div>
+      <pre id="log" class="log-output" tabindex="0" aria-label="Serial log">Ready. No device connected.</pre>
+      <div class="log-footer"><span>Plain text · Local session</span><span>Scroll up to pause follow</span></div>
+    </section>
+  </section>
+  <footer class="app-footer"><span>Mini drone <span class="separator">/</span> Phase 1 diagnostics</span><span>Arming disabled · Data stays local</span></footer>
 </main>
 <script type="module" src="./app.js"></script>
-</body></html>
+</body>
+</html>
